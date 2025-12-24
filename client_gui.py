@@ -36,6 +36,7 @@ class ChatClientGUI:
         self.server_ip = simpledialog.askstring("Server Connection", "Enter Server IP Address:", initialvalue="localhost")
         
         self.websocket = None
+        self.loop = None
         # Start the network loop in a background thread
         threading.Thread(target=self.start_async_thread, daemon=True).start()
 
@@ -81,14 +82,15 @@ class ChatClientGUI:
     def start_async_thread(self):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+        self.loop = loop
         loop.run_until_complete(self.run_network_logic())
 
     def send_action(self):
         text = self.msg_entry.get()
-        if text and self.websocket:
+        if text and self.websocket and self.loop:
             asyncio.run_coroutine_threadsafe(
                 self.websocket.send(json.dumps({"text": text})), 
-                asyncio.get_event_loop()
+                self.loop
             )
             self.msg_entry.delete(0, tk.END)
 
