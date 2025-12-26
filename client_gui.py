@@ -5,6 +5,8 @@ import threading
 import json
 import websockets
 
+from cryptography.fernet import Fernet
+
 class ChatClientGUI:
     def __init__(self, root):
         self.root = root
@@ -37,6 +39,7 @@ class ChatClientGUI:
         
         self.websocket = None
         self.loop = None
+        self.cipher_suite = None # Will be initialized when receiving key from server
         # Start the network loop in a background thread
         threading.Thread(target=self.start_async_thread, daemon=True).start()
 
@@ -51,6 +54,21 @@ class ChatClientGUI:
         self.user_sidebar.insert(tk.END, "--- ONLINE ---")
         for user in users:
             self.user_sidebar.insert(tk.END, f"● {user}")
+    
+    def try_decrypt(self, text):
+        """Attempts to decrypt the text if a key is available. Returns original text if decryption fails."""
+        if not self.cipher_suite:
+            return text
+        try:
+            return self.cipher_suite.decrypt(text.encode()).decode()
+        except:
+            return text
+    
+    def encrypt_text(self, text):
+        """Encrypts text using the shared key."""
+        if self.cipher_suite:
+            return self.cipher_suite.encrypt(text.encode()).decode()
+        return text
 
     async def run_network_logic(self):
         uri = f"ws://{self.server_ip}:6789"
@@ -64,18 +82,25 @@ class ChatClientGUI:
                     data = json.loads(raw_message)
                     m_type = data.get("type")
 
-                    if m_type == "user_list":
+                    if m_type == "key":
+                        key = data.get("key")
+                        self.cipher_suite = Fernet(key.encode())
+                        print(f"[LOG] Received encryption key.")
+                    elif m_type == "user_list":
                         self.refresh_user_sidebar(data['users'])
                     elif m_type == "history":
                         for entry in data['data']:
-                            self.log_to_screen(f"{entry['user']}: {entry['text']}")
+                            decoded_text = self.try_decrypt(entry['text'])
+                            self.log_to_screen(f"{entry['user']}: {decoded_text}")
                     elif m_type == "priv":
                         sender = data.get('from', 'You')
-                        self.log_to_screen(f"[PRIVATE FROM {sender}]: {data['text']}")
+                        decoded_text = self.try_decrypt(data['text'])
+                        self.log_to_screen(f"[PRIVATE FROM {sender}]: {decoded_text}")
                     elif m_type == "sys":
                         self.log_to_screen(f"SYSTEM: {data['text']}")
                     else:
-                        self.log_to_screen(f"{data.get('user')}: {data.get('text')}")
+                        decoded_text = self.try_decrypt(data.get('text'))
+                        self.log_to_screen(f"{data.get('user')}: {decoded_text}")
         except Exception as e:
             messagebox.showerror("Connection Lost", "Disconnected from server. Check your LAN/Wi-Fi connection.")
 
@@ -88,8 +113,19 @@ class ChatClientGUI:
     def send_action(self):
         text = self.msg_entry.get()
         if text and self.websocket and self.loop:
+            # Handle private message encryption vs public message encryption logic specially
+            # If private: @target <encrypted_msg>
+            # If public: <encrypted_msg>
+            
+            final_text = text
+            if text.startswith("@") and " " in text:
+                target, content = text.split(" ", 1)
+                final_text = f"{target} {self.encrypt_text(content)}"
+            else:
+                final_text = self.encrypt_text(text)
+
             asyncio.run_coroutine_threadsafe(
-                self.websocket.send(json.dumps({"text": text})), 
+                self.websocket.send(json.dumps({"text": final_text})), 
                 self.loop
             )
             self.msg_entry.delete(0, tk.END)

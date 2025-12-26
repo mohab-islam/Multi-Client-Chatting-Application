@@ -3,23 +3,50 @@ import websockets
 import json
 import os
 
+import sqlite3
+from cryptography.fernet import Fernet
+
 # Persistence Configuration
-DB_FILE = "chat_history.json"
+DB_FILE = "chat_history.db"
+KEY_FILE = "secret.key"
 clients = {} # Dictionary to map {username: websocket_connection}
 
+def load_key():
+    """Loads the secret key from the current directory or creates one if it doesn't exist."""
+    if os.path.exists(KEY_FILE):
+        with open(KEY_FILE, "rb") as key_file:
+            return key_file.read()
+    else:
+        key = Fernet.generate_key()
+        with open(KEY_FILE, "wb") as key_file:
+            key_file.write(key)
+        return key
+
+SECRET_KEY = load_key()
+
+def init_db():
+    """Initializes the SQLite database and creates the messages table if it doesn't exist."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            message TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
 def save_to_history(msg_obj):
-    """Saves message data to a local file for persistence."""
-    history = []
-    if os.path.exists(DB_FILE):
-        with open(DB_FILE, "r") as f:
-            try:
-                history = json.load(f)
-            except json.JSONDecodeError:
-                history = []
-    history.append(msg_obj)
-    # Keep only the last 100 messages to maintain performance
-    with open(DB_FILE, "w") as f:
-        json.dump(history[-100:], f)
+    """Saves message data to the SQLite database."""
+    # Only save if it has the expected keys
+    if "user" in msg_obj and "text" in msg_obj:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO messages (username, message) VALUES (?, ?)", (msg_obj["user"], msg_obj["text"]))
+        conn.commit()
+        conn.close()
 
 async def broadcast_user_list():
     """Sends the updated list of online users to everyone."""
@@ -37,13 +64,23 @@ async def handle_client(ws):
         username = init_data.get("user", "Anonymous")
         clients[username] = ws
         print(f"[LOG] {username} connected.")
+        
+        # Send Encryption Key
+        await ws.send(json.dumps({"type": "key", "key": SECRET_KEY.decode()}))
 
         # Step 2: Load Persistence (Send History)
-        if os.path.exists(DB_FILE):
-            with open(DB_FILE, "r") as f:
-                try:
-                    await ws.send(json.dumps({"type": "history", "data": json.load(f)}))
-                except: pass
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        # Retrieve the last 100 messages
+        cursor.execute("SELECT username, message FROM messages ORDER BY id DESC LIMIT 100")
+        rows = cursor.fetchall()
+        conn.close()
+        
+        # Convert back to message objects list (reverse to restore chronological order)
+        history = [{"type": "msg", "user": r[0], "text": r[1]} for r in reversed(rows)]
+        
+        await ws.send(json.dumps({"type": "history", "data": history}))
+
 
         # Step 3: Update User List and Notify Group
         await broadcast_user_list()
@@ -86,6 +123,8 @@ async def handle_client(ws):
             print(f"[LOG] {username} disconnected.")
 
 async def main():
+    # Initialize the database
+    init_db()
     # Bind to 0.0.0.0 to allow connections from any device on the LAN (Wired/Wireless)
     async with websockets.serve(handle_client, "0.0.0.0", 6789):
         print("Chat Server running on port 6789...")
