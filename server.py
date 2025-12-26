@@ -4,10 +4,25 @@ import json
 import os
 
 import sqlite3
+from cryptography.fernet import Fernet
 
 # Persistence Configuration
 DB_FILE = "chat_history.db"
+KEY_FILE = "secret.key"
 clients = {} # Dictionary to map {username: websocket_connection}
+
+def load_key():
+    """Loads the secret key from the current directory or creates one if it doesn't exist."""
+    if os.path.exists(KEY_FILE):
+        with open(KEY_FILE, "rb") as key_file:
+            return key_file.read()
+    else:
+        key = Fernet.generate_key()
+        with open(KEY_FILE, "wb") as key_file:
+            key_file.write(key)
+        return key
+
+SECRET_KEY = load_key()
 
 def init_db():
     """Initializes the SQLite database and creates the messages table if it doesn't exist."""
@@ -49,6 +64,9 @@ async def handle_client(ws):
         username = init_data.get("user", "Anonymous")
         clients[username] = ws
         print(f"[LOG] {username} connected.")
+        
+        # Send Encryption Key
+        await ws.send(json.dumps({"type": "key", "key": SECRET_KEY.decode()}))
 
         # Step 2: Load Persistence (Send History)
         conn = sqlite3.connect(DB_FILE)
