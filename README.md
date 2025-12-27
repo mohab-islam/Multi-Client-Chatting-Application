@@ -2,7 +2,7 @@
 
 ## Course Information
 **Course Name:** CSCI463: Introduction to Computer Networks  
-**Semester:** Fall 2024 (or Current Semester)  
+**Semester:** Fall 2025
 
 ## Team Members
 | Name | ID |
