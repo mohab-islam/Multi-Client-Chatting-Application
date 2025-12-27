@@ -1,0 +1,44 @@
+[
+    {
+        "user": "Hoba",
+        "text": "Hello everyone",
+        "type": "msg",
+        "target": null
+    },
+    {
+        "user": "Mohab",
+        "text": "hello hello",
+        "type": "priv",
+        "target": "Hoba"
+    },
+    {
+        "user": "Hoba",
+        "text": "alooo",
+        "type": "priv",
+        "target": "Mohab"
+    },
+    {
+        "user": "Hoba",
+        "text": "alooo",
+        "type": "msg",
+        "target": null
+    },
+    {
+        "user": "Hoba",
+        "text": "aloo",
+        "type": "msg",
+        "target": null
+    },
+    {
+        "user": "Mohab",
+        "text": "hello",
+        "type": "msg",
+        "target": null
+    },
+    {
+        "user": "Alice",
+        "text": "Priv msggg digaaa",
+        "type": "priv",
+        "target": "Hoba"
+    }
+]
