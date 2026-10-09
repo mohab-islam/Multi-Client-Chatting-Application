@@ -1,0 +1,11 @@
+# Runtime data and secrets (created on first run)
+secret.key
+users.json
+chat_history.json
+.env
+
+__pycache__/
+*.py[cod]
+.venv/
+.vscode/
+.idea/

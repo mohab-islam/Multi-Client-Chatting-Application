@@ -2,7 +2,12 @@ import socket
 import threading
 import json
 import os
+import hashlib
+import hmac
+import secrets
 from cryptography.fernet import Fernet
+
+from keystore import load_key
 
 # Configuration
 HOST = '0.0.0.0'
@@ -10,8 +15,7 @@ PORT = 6789
 DB_FILE = "chat_history.json" 
 USERS_FILE = "users.json"
 
-SECRET_KEY = b'REMOVED-SEE-README' 
-cipher_suite = Fernet(SECRET_KEY)
+cipher_suite = Fernet(load_key(create=True))
 
 clients = {} 
 lock = threading.RLock()
@@ -33,6 +37,21 @@ def save_users(users_db):
     except Exception as e:
         print(f"[ERROR] Failed to save users: {e}")
 
+def hash_password(password, salt=None):
+    salt = salt or secrets.token_bytes(16)
+    digest = hashlib.scrypt(password.encode(), salt=salt, n=2 ** 14, r=8, p=1)
+    return f"scrypt${salt.hex()}${digest.hex()}"
+
+
+def check_password(password, stored):
+    try:
+        _, salt, digest = stored.split("$")
+        expected = hash_password(password, bytes.fromhex(salt))
+        return hmac.compare_digest(expected, stored)
+    except (ValueError, AttributeError):
+        return False
+
+
 def authenticate_user(username, password):
     """
     Returns (True, msg) if valid/created.
@@ -43,13 +62,13 @@ def authenticate_user(username, password):
         
         if username in users_db:
             # Login
-            if users_db[username] == password:
+            if check_password(password, users_db[username]):
                 return True, "Welcome back!"
             else:
                 return False, "Incorrect password."
         else:
             # Register
-            users_db[username] = password
+            users_db[username] = hash_password(password)
             save_users(users_db)
             return True, "New account created. Welcome!"
 

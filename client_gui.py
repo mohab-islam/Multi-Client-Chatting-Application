@@ -5,9 +5,10 @@ import threading
 import json
 from cryptography.fernet import Fernet
 
+from keystore import load_key
+
 # Configuration
-SECRET_KEY = b'REMOVED-SEE-README' 
-cipher_suite = Fernet(SECRET_KEY)
+cipher_suite = Fernet(load_key())
 
 class ChatClientGUI:
     def __init__(self, root):

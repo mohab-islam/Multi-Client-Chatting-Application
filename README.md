@@ -5,13 +5,13 @@
 **Semester:** Fall 2025
 
 ## Team Members
-| Name | ID |
-|------|----|
-| Mohab Islam Ahmed | - |
-| Malik Ahmed Nagy | - |
-| Medhat Mohamed Zakareya | - |
-| Omar Magdy Abdel Mawla | - |
-| Mina Hany Tadres | - |
+| Name |
+|------|
+| Mohab Islam Ahmed |
+| Malik Ahmed Nagy |
+| Medhat Mohamed Zakareya |
+| Omar Magdy Abdel Mawla |
+| Mina Hany Tadres |
 
 ## Project Description
 This project is a multi-client chatting application developed using Python's socket programming libraries. It relies on a Centralized Server Architecture (TCP) to manage connections, ensuring reliable message delivery between users.
@@ -29,6 +29,12 @@ This project is a multi-client chatting application developed using Python's soc
 ### Prerequisites
 *   Python 3.x
 *   `cryptography` library
+
+### Encryption key
+All messages are encrypted with one shared Fernet key. It is **not** stored in the source code:
+
+*   The server creates `secret.key` the first time it starts (or reads `CHAT_SECRET_KEY` if you set it).
+*   Copy `secret.key` to each client machine next to `client_gui.py` (or set `CHAT_SECRET_KEY`). Keep it private.
 
 ### Installation
 1.  Install the required library:
@@ -48,3 +54,7 @@ This project is a multi-client chatting application developed using Python's soc
     python client_gui.py
     ```
     *   Enter the IP address of the server machine when prompted.
+
+
+## Notes on data
+Passwords are stored as salted scrypt hashes in `users.json`, and chat history in `chat_history.json`. Both files, and `secret.key`, are created at runtime and are git-ignored.
